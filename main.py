@@ -4,8 +4,8 @@ import BackEnd
 import os
 import sys
 
-TELA_W = 1200
-TELA_H = 1140
+TELA_W = 1200*0.9
+TELA_H = 1140*0.9
 
 FPS = 60
 
@@ -25,17 +25,22 @@ pg.display.set_caption("Graficos")
 inputOp = []
 textoOp = []
 
+
 def resource_path(relative_path):
     """ Get absolute path to resource, works for dev and for PyInstaller """
     base_path = getattr(sys, '_MEIPASS', os.path.abspath("."))
     return os.path.join(base_path, relative_path)
 
+
 def img(s: str, tipo="png"):
     path = resource_path(f"FrontEnd/img/{s}.{tipo}")
     return pg.image.load(path).convert_alpha()
+
+
 def execF(f):
     if callable(f):
         f()
+
 
 def sair():
     print("Saindo...")
