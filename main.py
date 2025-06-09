@@ -64,11 +64,19 @@ def main():
     def DFSClick():
         info = BackEnd.DFS()
         for node in nodes:
-            node.setInfo(str(info[node.id]))
+            if node.id in info:
+                node.setInfo(str(info[node.id]))
+            else:
+                node.setInfo("∞")
+
     def BFSClick():
         info = BackEnd.BFS()
         for node in nodes:
-            node.setInfo(str(info[node.id]))
+            if node.id in info:
+                node.setInfo(str(info[node.id]))
+            else:
+                node.setInfo("∞")  # Indica nó não alcançável
+
     btnBFS = obj.Botao(120, 453, img("BFS"), img("BFSHover"), BFSClick)
     btnDFS = obj.Botao(120, 550, img("DFS"), img("DFSHover"), DFSClick)
     
