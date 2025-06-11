@@ -30,10 +30,6 @@ Este sistema é uma aplicação web desenvolvida para demonstrar a implementaç�
 
 ## 🚀 Como Executar
 
-### Pré-requisitos
-- [Listar aqui os requisitos necessários - ex: Node.js, Python, etc.]
-- Navegador web moderno
-
 ### Passos para Execução
 
 1. **Clone o repositório:**
@@ -44,17 +40,12 @@ Este sistema é uma aplicação web desenvolvida para demonstrar a implementaç�
 <!-- 
 2. **Instale as dependências:**
    ```bash
-   [Comando de instalação - ex: npm install, pip install -r requirements.txt]
+   pip install -r requirements.txt
    ```
 
 3. **Execute a aplicação:**
    ```bash
-   [Comando para executar - ex: npm start, python app.py]
-   ```
-
-4. **Acesse no navegador:**
-   ```
-   http://localhost:[PORTA]
+   python main.py
    ```
 -->
 
@@ -64,7 +55,7 @@ Este sistema é uma aplicação web desenvolvida para demonstrar a implementaç�
 2. **Visualizar:** O sistema exibirá o grafo na forma de matriz ou lista de adjacência
 3. **Executar Algoritmo:** Escolha entre DFS ou BFS clicando no botão correspondente
 4. **Ver Resultados:** Analise os resultados completos da execução do algoritmo
-5. **Repetir ou Finalizar:** Continue com novos grafos ou finalize a aplicação
+5. **Repetir ou Finalizar:** Continue com novos grafosclicando "5" ou finalize a aplicação
 
 ## 🧪 Grafos de Teste
 
