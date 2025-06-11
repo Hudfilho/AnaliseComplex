@@ -4,8 +4,8 @@ import BackEnd
 import os
 import sys
 
-TELA_W = 1200 * 0.9
-TELA_H = 1140 * 0.9
+TELA_W = 1200 * 0.8
+TELA_H = 1140 * 0.8
 
 FPS = 60
 
@@ -172,10 +172,35 @@ def main():
         obj.resetNodeIndexCount()
         BackEnd.clear()
 
+    def btnResetClick():
+        """Reset completo da aplicação"""
+        nonlocal nodes, linhas, inp, renderOutline
+        # Limpa todos os dados
+        nodes = []
+        linhas = []
+        obj.resetNodeIndexCount()
+        BackEnd.clear()
+
+        # Reset da câmera
+        obj.camera.zoom = 1.0
+        obj.camera.x = 0
+        obj.camera.y = 0
+
+        # Reset para modo padrão (Add Node)
+        switchMode(0)
+
+        # Reset tipo de grafo para não-direcionado
+        BackEnd.setGrafoDirecionado(False)
+        textoTipoGrafo.textoSprite = textoTipoGrafo.fonte.render("Grafo: Não-direcionado", True, (100, 255, 100))
+
+        print("Aplicação reiniciada!")
+
     btnClear = obj.Botao(130, 1075, img("Limpar"), img("LimparHover"), btnClearClick, True)
+    btnReset = obj.Botao(230, 1075, img("Node"), img("NodeHover"), btnResetClick,
+                         True)  # Usando img Node temporariamente
     mouse_pos = pg.mouse.get_pos()
 
-    btns = [btnSair, btnClear, btnBFS, btnDFS, btnDirecionado, btnAddNode, btnAddLinha, btnMoverNode]
+    btns = [btnSair, btnClear, btnReset, btnBFS, btnDFS, btnDirecionado, btnAddNode, btnAddLinha, btnMoverNode]
 
     mouseHold = False
     mouseRelease = False
@@ -317,6 +342,8 @@ def main():
                     switchMode(2)
                 elif e.key == pg.K_4:
                     btnClearClick()
+                elif e.key == pg.K_5:  # Nova tecla para reset completo
+                    btnResetClick()
                 elif e.key == pg.K_b:
                     BFSClick()
                 elif e.key == pg.K_d:
@@ -433,7 +460,8 @@ def main():
             "Botão Meio/Direito: Pan",
             "+/- : Zoom por teclado",
             "R: Reset zoom",
-            "G: Alternar grafo direcionado"
+            "G: Alternar grafo direcionado",
+            "5: Reset completo da aplicação"
         ]
 
         y_offset = TELA_H - 150
