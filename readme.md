@@ -37,7 +37,7 @@ Este sistema é uma aplicação web desenvolvida para demonstrar a implementaç�
    git clone https://github.com/Hudfilho/AnaliseComplex/
    cd AnaliseComplex
    ```
-<!-- 
+
 2. **Instale as dependências:**
    ```bash
    pip install -r requirements.txt
@@ -47,7 +47,6 @@ Este sistema é uma aplicação web desenvolvida para demonstrar a implementaç�
    ```bash
    python main.py
    ```
--->
 
 ## 🎯 Como Usar
 
