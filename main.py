@@ -57,11 +57,17 @@ def main():
     global cont
     clock = pg.time.Clock()
 
+    # Inicializa a câmera
+    obj.init_camera(TELA_W, TELA_H)
+
     textoMode = obj.Texto(0, 0, "", fonteM, (255, 255, 255))
     textoMode.setTexto("Add Node", TELA_W)
 
     # Texto para mostrar o tipo de grafo
     textoTipoGrafo = obj.Texto(10, 10, "Grafo: Não-direcionado", fonteP, (255, 255, 0))
+
+    # Texto para mostrar informações do zoom
+    textoZoom = obj.Texto(10, 50, f"Zoom: {obj.camera.zoom:.2f}x", fonteP, (200, 200, 255))
 
     nodes = []
     linhas = []
@@ -111,6 +117,13 @@ def main():
         for i, linha in enumerate(linhas):
             print(f"Linha {i}: {linha.ponto0.coords} -> {linha.ponto1.coords}, direcionada: {linha.direcionada}")
         print("--- FIM DEBUG ---\n")
+
+    def resetZoom():
+        """Reset zoom e posição da câmera"""
+        obj.camera.zoom = 1.0
+        obj.camera.x = 0
+        obj.camera.y = 0
+        print("Zoom resetado!")
 
     btnBFS = obj.Botao(120, 453, img("BFS"), img("BFSHover"), BFSClick)
     btnDFS = obj.Botao(120, 550, img("DFS"), img("DFSHover"), DFSClick)
@@ -180,13 +193,18 @@ def main():
     outline = img("Outline")
     renderOutline = False
 
+    # Variáveis para pan da câmera
+    panning = False
+    last_pan_pos = (0, 0)
+
     def addNodeClick():
+        world_mouse_pos = obj.camera.screen_to_world(mouse_pos)
         for node in nodes:
-            if node.collide(mouse_pos, 21500):
+            if node.collide(world_mouse_pos, 21500):
                 return
-        n = obj.Node(mouse_pos)
+        n = obj.Node(world_mouse_pos)
         n.setInfo("°")
-        n.mover(mouse_pos)
+        n.mover(world_mouse_pos)
         nodes.append(n)
         BackEnd.addNode(n.id)
 
@@ -194,8 +212,9 @@ def main():
 
     def addLinhaClick():
         nonlocal linhaAtiva, linhaNode0
+        world_mouse_pos = obj.camera.screen_to_world(mouse_pos)
         for node in nodes:
-            if node.collide(mouse_pos):
+            if node.collide(world_mouse_pos):
                 linhaNode0 = node
                 linhaAtiva = True
                 break
@@ -203,18 +222,40 @@ def main():
     def addLinhaHold():
         if linhaAtiva and linhaNode0 is not None:
             # Mostra uma prévia da linha/seta sendo criada
+            world_mouse_pos = obj.camera.screen_to_world(mouse_pos)
+            inicio_screen = obj.camera.world_to_screen(linhaNode0.xy.coords)
+            fim_screen = mouse_pos  # Usa a posição do mouse na tela diretamente
+
             if BackEnd.grafo_direcionado:
                 # Desenha uma seta temporária
-                linha_temp = obj.Linha(linhaNode0.xy, obj.XY(mouse_pos), True)
-                linha_temp.desenhar_seta(tela, linhaNode0.xy.coords, mouse_pos, (150, 150, 150), 5)
+                pg.draw.line(tela, (150, 150, 150), inicio_screen, fim_screen, max(1, int(5 * obj.camera.zoom)))
+
+                # Desenha uma seta simples no final
+                import math
+                dx = fim_screen[0] - inicio_screen[0]
+                dy = fim_screen[1] - inicio_screen[1]
+                if dx != 0 or dy != 0:
+                    angulo = math.atan2(dy, dx)
+                    tamanho_seta = 15 * obj.camera.zoom
+                    angulo_seta = math.pi / 6
+
+                    x1 = fim_screen[0] - tamanho_seta * math.cos(angulo - angulo_seta)
+                    y1 = fim_screen[1] - tamanho_seta * math.sin(angulo - angulo_seta)
+                    x2 = fim_screen[0] - tamanho_seta * math.cos(angulo + angulo_seta)
+                    y2 = fim_screen[1] - tamanho_seta * math.sin(angulo + angulo_seta)
+
+                    espessura = max(1, int(5 * obj.camera.zoom))
+                    pg.draw.line(tela, (150, 150, 150), fim_screen, (x1, y1), espessura)
+                    pg.draw.line(tela, (150, 150, 150), fim_screen, (x2, y2), espessura)
             else:
-                pg.draw.line(tela, (255, 255, 255), linhaNode0.xy.coords, mouse_pos, 10)
+                pg.draw.line(tela, (150, 150, 150), inicio_screen, fim_screen, max(1, int(5 * obj.camera.zoom)))
 
     def addLinhaRelease():
         nonlocal linhaAtiva, linhaNode0
         linhaAtiva = False
+        world_mouse_pos = obj.camera.screen_to_world(mouse_pos)
         for node in nodes:
-            if node.collide(mouse_pos) and linhaNode0 is not None and node.xy.coords != linhaNode0.xy.coords:
+            if node.collide(world_mouse_pos) and linhaNode0 is not None and node.xy.coords != linhaNode0.xy.coords:
                 # Cria linha direcionada ou não baseado no tipo de grafo
                 linha = obj.Linha(linhaNode0.xy, node.xy, BackEnd.grafo_direcionado)
                 linhas.append(linha)
@@ -236,14 +277,16 @@ def main():
 
     def moverNodeClick():
         nonlocal nodeMover
+        world_mouse_pos = obj.camera.screen_to_world(mouse_pos)
         for node in nodes:
-            if node.collide(mouse_pos):
+            if node.collide(world_mouse_pos):
                 nodeMover = node
 
     def moverNodeHold():
         nonlocal nodeMover
         if nodeMover is not None:
-            nodeMover.mover(mouse_pos)
+            world_mouse_pos = obj.camera.screen_to_world(mouse_pos)
+            nodeMover.mover(world_mouse_pos)
 
     def moverNodeRelease():
         nonlocal nodeMover
@@ -261,6 +304,7 @@ def main():
         mouseHold = False
         mouseRelease = False
         mouseClick = False
+
         for e in pg.event.get():
             if e.type == pg.QUIT:
                 cont = False
@@ -281,14 +325,35 @@ def main():
                     toggleGrafoDirecionado()
                 elif e.key == pg.K_l:  # Nova tecla para debug das linhas
                     debugLinhas()
+                elif e.key == pg.K_r:  # Nova tecla para resetar zoom
+                    resetZoom()
                 elif e.key == pg.K_ESCAPE:
                     sair()
+                # Controles de zoom por teclado
+                elif e.key == pg.K_PLUS or e.key == pg.K_EQUALS:
+                    obj.camera.zoom_at(mouse_pos, 1.2)
+                elif e.key == pg.K_MINUS:
+                    obj.camera.zoom_at(mouse_pos, 0.8)
             elif e.type == pg.MOUSEBUTTONDOWN:
-                if e.button == 1:
+                if e.button == 1:  # Botão esquerdo
                     mouseClick = True
+                elif e.button == 2:  # Botão do meio - pan
+                    panning = True
+                    last_pan_pos = mouse_pos
+                elif e.button == 3:  # Botão direito - também pan
+                    panning = True
+                    last_pan_pos = mouse_pos
             elif e.type == pg.MOUSEBUTTONUP:
                 if e.button == 1:
                     mouseRelease = True
+                elif e.button == 2 or e.button == 3:
+                    panning = False
+            elif e.type == pg.MOUSEWHEEL:
+                # Zoom com roda do mouse
+                if e.y > 0:  # Scroll up - zoom in
+                    obj.camera.zoom_at(mouse_pos, 1.1)
+                elif e.y < 0:  # Scroll down - zoom out
+                    obj.camera.zoom_at(mouse_pos, 0.9)
 
         tela.fill((18, 12, 34))
 
@@ -296,47 +361,85 @@ def main():
         mouseData = pg.mouse.get_pressed()[0]
         mouseHold = pg.mouse.get_pressed()[0]
 
+        # Handle panning
+        if panning:
+            current_pos = mouse_pos
+            dx = current_pos[0] - last_pan_pos[0]
+            dy = current_pos[1] - last_pan_pos[1]
+            obj.camera.move(-dx, -dy)
+            last_pan_pos = current_pos
+
+        # Verifica se o mouse está sobre a toolbar para desabilitar input
         for rect in noInpRects:
             if rect.collidepoint(mouse_pos):
                 mouseClick = False
                 mouseHold = False
                 mouseRelease = False
+                panning = False  # Também desabilita pan sobre a toolbar
                 break
+
+        # Converte posição do mouse para coordenadas do mundo
+        world_mouse_pos = obj.camera.screen_to_world(mouse_pos)
 
         if mouseClick:
             execF(inp[CLICK])
-            print(mouse_pos)
-        if mouseHold:
+            print(f"Screen: {mouse_pos}, World: {world_mouse_pos}")
+        if mouseHold and not panning:
             execF(inp[HOLD])
         if mouseRelease:
             execF(inp[RELEASE])
 
+        # Renderiza linhas primeiro (para ficarem atrás dos nós)
         for linha in linhas:
             linha.render(tela)
 
+        # Renderiza nós
         for node in nodes:
-            node.update(mouse_pos, mouseData)
+            node.update(world_mouse_pos, mouseData)
             node.render(tela)
 
+        # Renderiza UI (sempre por cima)
         tela.blit(toolBar, (30, 30))
 
         # Renderiza o texto do tipo de grafo
         textoTipoGrafo.render(tela)
 
+        # Atualiza e renderiza texto do zoom
+        textoZoom.textoSprite = textoZoom.fonte.render(f"Zoom: {obj.camera.zoom:.2f}x", True, (200, 200, 255))
+        textoZoom.render(tela)
+
+        # Renderiza outline para modo Add Node
         if renderOutline:
             for node in nodes:
-                if node.collide(mouse_pos, 21500):
+                if node.collide(world_mouse_pos, 21500):
                     outlineRect = outline.get_rect()
                     outlineRect.center = mouse_pos
                     tela.blit(outline, outlineRect)
                     break
 
+        # Renderiza botões
         for btn in btns:
             btn.update(mouse_pos, mouseData)
             btn.render(tela)
 
+        # Renderiza texto do modo
         textoMode.update(mouse_pos, mouseData)
         textoMode.render(tela)
+
+        # Renderiza instruções de controle na tela
+        instrucoes = [
+            "Controles:",
+            "Roda do Mouse: Zoom",
+            "Botão Meio/Direito: Pan",
+            "+/- : Zoom por teclado",
+            "R: Reset zoom",
+            "G: Alternar grafo direcionado"
+        ]
+
+        y_offset = TELA_H - 150
+        for i, instrucao in enumerate(instrucoes):
+            texto_instrucao = fonteP.render(instrucao, True, (150, 150, 150) if i == 0 else (100, 100, 100))
+            tela.blit(texto_instrucao, (10, y_offset + i * 20))
 
         pg.display.update()
 

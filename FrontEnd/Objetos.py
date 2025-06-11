@@ -6,6 +6,61 @@ fonte = pg.font.Font(None, 70)
 fonteP = pg.font.Font(None, 40)
 
 
+class Camera:
+    def __init__(self, width, height):
+        self.x = 0
+        self.y = 0
+        self.zoom = 1.0
+        self.min_zoom = 0.1
+        self.max_zoom = 3.0
+        self.width = width
+        self.height = height
+
+    def world_to_screen(self, world_pos):
+        """Converte coordenadas do mundo para coordenadas da tela"""
+        screen_x = (world_pos[0] - self.x) * self.zoom
+        screen_y = (world_pos[1] - self.y) * self.zoom
+        return (screen_x, screen_y)
+
+    def screen_to_world(self, screen_pos):
+        """Converte coordenadas da tela para coordenadas do mundo"""
+        world_x = screen_pos[0] / self.zoom + self.x
+        world_y = screen_pos[1] / self.zoom + self.y
+        return (world_x, world_y)
+
+    def zoom_at(self, screen_pos, zoom_delta):
+        """Faz zoom mantendo o ponto da tela fixo"""
+        # Converte posição da tela para mundo antes do zoom
+        world_pos = self.screen_to_world(screen_pos)
+
+        # Aplica o zoom
+        old_zoom = self.zoom
+        self.zoom = max(self.min_zoom, min(self.max_zoom, self.zoom * zoom_delta))
+
+        # Se o zoom realmente mudou, ajusta a posição da câmera
+        if self.zoom != old_zoom:
+            # Converte de volta para mundo com novo zoom
+            new_world_pos = self.screen_to_world(screen_pos)
+
+            # Ajusta posição da câmera para manter o ponto fixo
+            self.x += world_pos[0] - new_world_pos[0]
+            self.y += world_pos[1] - new_world_pos[1]
+
+    def move(self, dx, dy):
+        """Move a câmera"""
+        self.x += dx / self.zoom
+        self.y += dy / self.zoom
+
+
+# Instância global da câmera
+camera = None
+
+
+def init_camera(width, height):
+    global camera
+    camera = Camera(width, height)
+
+
 class Botao():
     def __init__(self, x, y, sprite, spriteHover, emClick, tipoRender=False):
         self.sprite = sprite
@@ -113,11 +168,12 @@ class Node():
         self.texto = Texto(xy[0] - 20, xy[1] - 20, str(NodeIndexCount), fonte, (0, 0, 0))
         self.texto.rect.center = xy
         self.info = Texto(xy[0] - 20, xy[1] - 20, "", fonteP, (255, 255, 255))
+        self.info_texto = ""  # Armazena o texto atual da info
         self.infoAtivo = False
         NodeIndexCount += 1
 
-    def collide(self, mouse_pos, distSqr=2353):
-        x1, y1 = mouse_pos
+    def collide(self, world_mouse_pos, distSqr=2353):
+        x1, y1 = world_mouse_pos
         return ((self.xy.coords[0] - x1) ** 2 + (self.xy.coords[1] - y1) ** 2) < distSqr
 
     def mover(self, xy):
@@ -127,8 +183,8 @@ class Node():
         self.rect.center = xy
         self.info.rect.bottomleft = (self.rect.topright[0] - 10, self.rect.topright[1] + 30)
 
-    def update(self, mouse_pos, mouseData):
-        if self.collide(mouse_pos):
+    def update(self, world_mouse_pos, mouseData):
+        if self.collide(world_mouse_pos):
             self.hover = True
             if mouseData and not self.click:
                 self.click = True
@@ -139,21 +195,62 @@ class Node():
                 self.click = False
 
     def setInfo(self, texto):
+        # Armazena o texto atual para uso posterior
+        self.info_texto = texto
         self.info.setTextoNode(texto, self.rect.topleft)
         self.info.rect.bottomleft = (self.rect.topright[0] - 10, self.rect.topright[1] + 30)
         self.infoAtivo = True
 
     def render(self, tela):
-        global nodeSprite, nodeSpriteHover
-        if self.hover:
-            tela.blit(nodeSpriteHover, (self.rect.x, self.rect.y))
-        else:
-            tela.blit(nodeSprite, (self.rect.x, self.rect.y))
-        if self.infoAtivo:
-            pg.draw.rect(tela, (18, 12, 34, 100), (
-            self.info.rect.x - 5, self.info.rect.y - 5, self.info.rect.width + 10, self.info.rect.height + 10))
-            self.info.render(tela)
-        self.texto.render(tela)
+        global nodeSprite, nodeSpriteHover, camera
+        if camera is None:
+            return
+
+        # Converte posição do mundo para tela
+        screen_pos = camera.world_to_screen(self.xy.coords)
+
+        # Calcula o tamanho do nó baseado no zoom
+        scaled_width = int(nodeSprite.get_width() * camera.zoom)
+        scaled_height = int(nodeSprite.get_height() * camera.zoom)
+
+        # Só renderiza se estiver visível na tela
+        if (-scaled_width < screen_pos[0] < camera.width and
+                -scaled_height < screen_pos[1] < camera.height):
+
+            # Escala o sprite do nó
+            if self.hover:
+                scaled_sprite = pg.transform.scale(nodeSpriteHover, (scaled_width, scaled_height))
+            else:
+                scaled_sprite = pg.transform.scale(nodeSprite, (scaled_width, scaled_height))
+
+            # Centraliza o sprite
+            sprite_rect = scaled_sprite.get_rect()
+            sprite_rect.center = screen_pos
+            tela.blit(scaled_sprite, sprite_rect)
+
+            # Renderiza info se ativo
+            if self.infoAtivo:
+                # Posição da info na tela
+                info_world_pos = (self.xy.coords[0] + 40, self.xy.coords[1] - 40)
+                info_screen_pos = camera.world_to_screen(info_world_pos)
+
+                # Renderiza o texto da info usando o texto armazenado
+                info_surface = self.info.fonte.render(str(self.info_texto), True, (255, 255, 255))
+                info_rect = info_surface.get_rect()
+                info_rect.topleft = info_screen_pos
+
+                # Fundo da info
+                pg.draw.rect(tela, (18, 12, 34, 200),
+                             (info_rect.x - 5, info_rect.y - 5,
+                              info_rect.width + 10, info_rect.height + 10))
+                tela.blit(info_surface, info_screen_pos)
+
+            # Renderiza o texto do ID do nó
+            texto_screen_pos = camera.world_to_screen(self.xy.coords)
+            texto_surface = self.texto.fonte.render(str(self.id), True, (0, 0, 0))
+            texto_rect = texto_surface.get_rect()
+            texto_rect.center = texto_screen_pos
+            tela.blit(texto_surface, texto_rect)
 
 
 class Linha():
@@ -227,9 +324,17 @@ class Linha():
         """
         Desenha uma seta com curva
         """
+        global camera
+        if camera is None:
+            return
+
+        # Converte pontos para coordenadas de tela
+        inicio_screen = camera.world_to_screen(inicio)
+        fim_screen = camera.world_to_screen(fim)
+
         # Ajusta pontos para não sobrepor aos nós
-        dx = fim[0] - inicio[0]
-        dy = fim[1] - inicio[1]
+        dx = fim_screen[0] - inicio_screen[0]
+        dy = fim_screen[1] - inicio_screen[1]
         comprimento = math.sqrt(dx * dx + dy * dy)
 
         if comprimento < 10:
@@ -238,22 +343,23 @@ class Linha():
         dx_norm = dx / comprimento
         dy_norm = dy / comprimento
 
-        raio_no = 30
+        raio_no = 30 * camera.zoom
         inicio_ajustado = (
-            inicio[0] + dx_norm * raio_no,
-            inicio[1] + dy_norm * raio_no
+            inicio_screen[0] + dx_norm * raio_no,
+            inicio_screen[1] + dy_norm * raio_no
         )
         fim_ajustado = (
-            fim[0] - dx_norm * raio_no,
-            fim[1] - dy_norm * raio_no
+            fim_screen[0] - dx_norm * raio_no,
+            fim_screen[1] - dy_norm * raio_no
         )
 
-        # Calcula os pontos da curva
-        pontos_curva = self.calcular_pontos_curva(inicio_ajustado, fim_ajustado, curvatura)
+        # Calcula os pontos da curva em coordenadas de tela
+        pontos_curva = self.calcular_pontos_curva(inicio_ajustado, fim_ajustado, curvatura * camera.zoom)
 
         # Desenha a curva como uma série de linhas pequenas
+        espessura_scaled = max(1, int(espessura * camera.zoom))
         for i in range(len(pontos_curva) - 1):
-            pg.draw.line(tela, cor, pontos_curva[i], pontos_curva[i + 1], espessura)
+            pg.draw.line(tela, cor, pontos_curva[i], pontos_curva[i + 1], espessura_scaled)
 
         # Desenha a ponta da seta no final da curva
         if len(pontos_curva) >= 2:
@@ -266,7 +372,7 @@ class Linha():
             angulo = math.atan2(dy_seta, dx_seta)
 
             # Tamanho e ângulo da seta
-            tamanho_seta = 25
+            tamanho_seta = 25 * camera.zoom
             angulo_seta = math.pi / 6  # 30 graus
 
             # Pontos da ponta da seta
@@ -277,19 +383,28 @@ class Linha():
             y2 = ultimo_ponto[1] - tamanho_seta * math.sin(angulo + angulo_seta)
 
             # Desenha as linhas da ponta da seta
-            pg.draw.line(tela, cor, ultimo_ponto, (x1, y1), espessura)
-            pg.draw.line(tela, cor, ultimo_ponto, (x2, y2), espessura)
+            pg.draw.line(tela, cor, ultimo_ponto, (x1, y1), espessura_scaled)
+            pg.draw.line(tela, cor, ultimo_ponto, (x2, y2), espessura_scaled)
 
     def desenhar_seta(self, tela, inicio, fim, cor=(255, 255, 255), espessura=10):
         """
         Desenha uma seta reta (método original para compatibilidade)
         """
+        global camera
+        if camera is None:
+            return
+
+        # Converte pontos para coordenadas de tela
+        inicio_screen = camera.world_to_screen(inicio)
+        fim_screen = camera.world_to_screen(fim)
+
         # Desenha a linha principal primeiro
-        pg.draw.line(tela, cor, inicio, fim, espessura)
+        espessura_scaled = max(1, int(espessura * camera.zoom))
+        pg.draw.line(tela, cor, inicio_screen, fim_screen, espessura_scaled)
 
         # Calcula a direção da linha
-        dx = fim[0] - inicio[0]
-        dy = fim[1] - inicio[1]
+        dx = fim_screen[0] - inicio_screen[0]
+        dy = fim_screen[1] - inicio_screen[1]
         comprimento = math.sqrt(dx * dx + dy * dy)
 
         if comprimento < 10:  # Linha muito curta
@@ -300,14 +415,14 @@ class Linha():
         dy_norm = dy / comprimento
 
         # Ajusta o ponto final para não sobrepor ao nó
-        raio_no = 60
+        raio_no = 60 * camera.zoom
         fim_ajustado = (
-            fim[0] - dx_norm * raio_no,
-            fim[1] - dy_norm * raio_no
+            fim_screen[0] - dx_norm * raio_no,
+            fim_screen[1] - dy_norm * raio_no
         )
 
         # Tamanho e ângulo da seta
-        tamanho_seta = 25
+        tamanho_seta = 25 * camera.zoom
         angulo = math.atan2(dy, dx)
         angulo_seta = math.pi / 6  # 30 graus
 
@@ -319,20 +434,33 @@ class Linha():
         y2 = fim_ajustado[1] - tamanho_seta * math.sin(angulo + angulo_seta)
 
         # Desenha as linhas da ponta da seta
-        pg.draw.line(tela, cor, fim_ajustado, (x1, y1), espessura)
-        pg.draw.line(tela, cor, fim_ajustado, (x2, y2), espessura)
+        pg.draw.line(tela, cor, fim_ajustado, (x1, y1), espessura_scaled)
+        pg.draw.line(tela, cor, fim_ajustado, (x2, y2), espessura_scaled)
 
     def render(self, tela):
-        if self.direcionada:
-            if self.curvatura != 0:
-                # Desenha seta com curva
-                self.desenhar_seta_curva(tela, self.ponto0.coords, self.ponto1.coords, self.curvatura)
+        global camera
+        if camera is None:
+            return
+
+        # Verifica se a linha está visível na tela
+        inicio_screen = camera.world_to_screen(self.ponto0.coords)
+        fim_screen = camera.world_to_screen(self.ponto1.coords)
+
+        # Renderiza apenas se pelo menos parte da linha estiver visível
+        if ((-100 < inicio_screen[0] < camera.width + 100 or -100 < fim_screen[0] < camera.width + 100) and
+                (-100 < inicio_screen[1] < camera.height + 100 or -100 < fim_screen[1] < camera.height + 100)):
+
+            if self.direcionada:
+                if self.curvatura != 0:
+                    # Desenha seta com curva
+                    self.desenhar_seta_curva(tela, self.ponto0.coords, self.ponto1.coords, self.curvatura)
+                else:
+                    # Desenha seta reta
+                    self.desenhar_seta(tela, self.ponto0.coords, self.ponto1.coords)
             else:
-                # Desenha seta reta
-                self.desenhar_seta(tela, self.ponto0.coords, self.ponto1.coords)
-        else:
-            # Linha normal sem seta
-            pg.draw.line(tela, (255, 255, 255), self.ponto0.coords, self.ponto1.coords, 10)
+                # Linha normal sem seta
+                espessura_scaled = max(1, int(10 * camera.zoom))
+                pg.draw.line(tela, (255, 255, 255), inicio_screen, fim_screen, espessura_scaled)
 
 
 class Texto():
