@@ -13,7 +13,7 @@
 - **Michel Lutegar** - 202208385192
 - **André Costa** - 202208385371  
 - **Henrique** - 202208818609
-- **Hudson Filho** - 202208385362
+- **Hudson Assumpcao** - 202208385362
 
 ## 📖 Sobre o Sistema
 
