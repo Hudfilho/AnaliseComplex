@@ -4,8 +4,8 @@ import BackEnd
 import os
 import sys
 
-TELA_W = 1200*0.9
-TELA_H = 1140*0.9
+TELA_W = 1200 * 0.9
+TELA_H = 1140 * 0.9
 
 FPS = 60
 
@@ -47,9 +47,11 @@ def sair():
     global cont
     cont = False
 
+
 pg.display.set_icon(img("mage", "jpg"))
 
 cont = True
+
 
 def main():
     global cont
@@ -57,6 +59,9 @@ def main():
 
     textoMode = obj.Texto(0, 0, "", fonteM, (255, 255, 255))
     textoMode.setTexto("Add Node", TELA_W)
+
+    # Texto para mostrar o tipo de grafo
+    textoTipoGrafo = obj.Texto(10, 10, "Grafo: Não-direcionado", fonteP, (255, 255, 0))
 
     nodes = []
     linhas = []
@@ -77,13 +82,46 @@ def main():
             else:
                 node.setInfo("∞")  # Indica nó não alcançável
 
+    def toggleGrafoDirecionado():
+        """
+        Alterna entre grafo direcionado e não-direcionado
+        """
+        BackEnd.setGrafoDirecionado(not BackEnd.grafo_direcionado)
+
+        # Atualiza o texto indicativo
+        if BackEnd.grafo_direcionado:
+            textoTipoGrafo.textoSprite = textoTipoGrafo.fonte.render("Grafo: Direcionado", True, (255, 100, 100))
+            print("Modo: Grafo Direcionado - Arestas terão direção!")
+        else:
+            textoTipoGrafo.textoSprite = textoTipoGrafo.fonte.render("Grafo: Não-direcionado", True, (100, 255, 100))
+            print("Modo: Grafo Não-direcionado - Arestas bidirecionais")
+
+        # Debug: verificar linhas existentes
+        print(f"Linhas existentes: {len(linhas)}")
+        for i, linha in enumerate(linhas):
+            print(f"Linha {i}: direcionada = {linha.direcionada}")
+
+    def debugLinhas():
+        """
+        Função para debugar as linhas criadas
+        """
+        print(f"\n--- DEBUG LINHAS ---")
+        print(f"Total de linhas: {len(linhas)}")
+        print(f"Grafo direcionado: {BackEnd.grafo_direcionado}")
+        for i, linha in enumerate(linhas):
+            print(f"Linha {i}: {linha.ponto0.coords} -> {linha.ponto1.coords}, direcionada: {linha.direcionada}")
+        print("--- FIM DEBUG ---\n")
+
     btnBFS = obj.Botao(120, 453, img("BFS"), img("BFSHover"), BFSClick)
     btnDFS = obj.Botao(120, 550, img("DFS"), img("DFSHover"), DFSClick)
-    
+
+    # Botão para alternar tipo de grafo - crie uma imagem simples ou use texto
+    btnDirecionado = obj.Botao(120, 647, img("Node"), img("NodeHover"), toggleGrafoDirecionado)
+
     def switchMode(mode):
         nonlocal inp, btnAddNode, btnAddLinha, btnMoverNode, renderOutline
         if mode == 0:
-            btnAddNode.on() 
+            btnAddNode.on()
             btnAddLinha.off()
             btnMoverNode.off()
             inp = addNode
@@ -112,16 +150,19 @@ def main():
 
     toolBar = img("ToolBar")
 
-    btnSair = obj.Botao(1145,51,img("Sair"),img("SairHover"), sair, True)
+    btnSair = obj.Botao(1145, 51, img("Sair"), img("SairHover"), sair, True)
+
     def btnClearClick():
         nonlocal nodes, linhas
         nodes = []
         linhas = []
         obj.resetNodeIndexCount()
-    btnClear = obj.Botao(130,1075,img("Limpar"),img("LimparHover"), btnClearClick, True)
+        BackEnd.clear()
+
+    btnClear = obj.Botao(130, 1075, img("Limpar"), img("LimparHover"), btnClearClick, True)
     mouse_pos = pg.mouse.get_pos()
 
-    btns = [btnSair, btnClear, btnBFS, btnDFS, btnAddNode, btnAddLinha, btnMoverNode]
+    btns = [btnSair, btnClear, btnBFS, btnDFS, btnDirecionado, btnAddNode, btnAddLinha, btnMoverNode]
 
     mouseHold = False
     mouseRelease = False
@@ -148,6 +189,7 @@ def main():
         n.mover(mouse_pos)
         nodes.append(n)
         BackEnd.addNode(n.id)
+
     addNode[CLICK] = addNodeClick
 
     def addLinhaClick():
@@ -157,36 +199,56 @@ def main():
                 linhaNode0 = node
                 linhaAtiva = True
                 break
+
     def addLinhaHold():
         if linhaAtiva and linhaNode0 is not None:
-            pg.draw.line(tela, (255, 255, 255), linhaNode0.xy.coords, mouse_pos, 10)
+            # Mostra uma prévia da linha/seta sendo criada
+            if BackEnd.grafo_direcionado:
+                # Desenha uma seta temporária
+                linha_temp = obj.Linha(linhaNode0.xy, obj.XY(mouse_pos), True)
+                linha_temp.desenhar_seta(tela, linhaNode0.xy.coords, mouse_pos, (150, 150, 150), 5)
+            else:
+                pg.draw.line(tela, (255, 255, 255), linhaNode0.xy.coords, mouse_pos, 10)
+
     def addLinhaRelease():
         nonlocal linhaAtiva, linhaNode0
         linhaAtiva = False
         for node in nodes:
             if node.collide(mouse_pos) and linhaNode0 is not None and node.xy.coords != linhaNode0.xy.coords:
-                linhas.append(obj.Linha(linhaNode0.xy, node.xy))
-                print("Linha adicionada " + str(linhaNode0.id) + " " + str(node.id))
+                # Cria linha direcionada ou não baseado no tipo de grafo
+                linha = obj.Linha(linhaNode0.xy, node.xy, BackEnd.grafo_direcionado)
+                linhas.append(linha)
+
+                if BackEnd.grafo_direcionado:
+                    print(f"Aresta direcionada adicionada: {linhaNode0.id} -> {node.id}")
+                else:
+                    print(f"Aresta adicionada: {linhaNode0.id} <-> {node.id}")
+
                 BackEnd.addLinha(linhaNode0.id, node.id)
                 break
         linhaNode0 = None
+
     addLinha[CLICK] = addLinhaClick
     addLinha[HOLD] = addLinhaHold
     addLinha[RELEASE] = addLinhaRelease
 
     nodeMover = None
+
     def moverNodeClick():
         nonlocal nodeMover
         for node in nodes:
             if node.collide(mouse_pos):
                 nodeMover = node
+
     def moverNodeHold():
         nonlocal nodeMover
         if nodeMover is not None:
             nodeMover.mover(mouse_pos)
+
     def moverNodeRelease():
         nonlocal nodeMover
         nodeMover = None
+
     moverNode[CLICK] = moverNodeClick
     moverNode[HOLD] = moverNodeHold
     moverNode[RELEASE] = moverNodeRelease
@@ -215,6 +277,10 @@ def main():
                     BFSClick()
                 elif e.key == pg.K_d:
                     DFSClick()
+                elif e.key == pg.K_g:  # Nova tecla para alternar grafo direcionado
+                    toggleGrafoDirecionado()
+                elif e.key == pg.K_l:  # Nova tecla para debug das linhas
+                    debugLinhas()
                 elif e.key == pg.K_ESCAPE:
                     sair()
             elif e.type == pg.MOUSEBUTTONDOWN:
@@ -224,7 +290,7 @@ def main():
                 if e.button == 1:
                     mouseRelease = True
 
-        tela.fill((18,12,34))
+        tela.fill((18, 12, 34))
 
         mouse_pos = pg.mouse.get_pos()
         mouseData = pg.mouse.get_pressed()[0]
@@ -244,7 +310,7 @@ def main():
             execF(inp[HOLD])
         if mouseRelease:
             execF(inp[RELEASE])
-        
+
         for linha in linhas:
             linha.render(tela)
 
@@ -253,6 +319,9 @@ def main():
             node.render(tela)
 
         tela.blit(toolBar, (30, 30))
+
+        # Renderiza o texto do tipo de grafo
+        textoTipoGrafo.render(tela)
 
         if renderOutline:
             for node in nodes:
@@ -272,5 +341,6 @@ def main():
         pg.display.update()
 
     pg.quit()
+
 
 main()

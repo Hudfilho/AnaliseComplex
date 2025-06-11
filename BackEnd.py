@@ -5,6 +5,16 @@ class Node:
 
 mainNodeId = -1
 nodes = {}
+grafo_direcionado = False  # Nova variável global
+
+
+def setGrafoDirecionado(direcionado=True):
+    """
+    Define se o grafo é direcionado ou não
+    """
+    global grafo_direcionado
+    grafo_direcionado = direcionado
+    print(f"Grafo configurado como: {'Direcionado' if direcionado else 'Não-direcionado'}")
 
 
 def addNode(id):
@@ -15,16 +25,31 @@ def addNode(id):
 
 
 def addLinha(id0, id1):
+    """
+    Adiciona aresta entre dois nós
+    Se grafo_direcionado = True: aresta vai de id0 -> id1
+    Se grafo_direcionado = False: aresta bidirecional id0 <-> id1
+    """
     if id0 not in nodes:
-        print("Node " + str(id0) + " n encontrada")
+        print("Node " + str(id0) + " não encontrado")
         return
     if id1 not in nodes:
-        print("Node " + str(id1) + " n encontrada")
+        print("Node " + str(id1) + " não encontrado")
         return
-    nodes[id0].vizinhosID.append(id1)
-    nodes[id0].vizinhosID.sort()
-    nodes[id1].vizinhosID.append(id0)
-    nodes[id1].vizinhosID.sort()
+
+    # Adiciona a aresta de id0 para id1
+    if id1 not in nodes[id0].vizinhosID:
+        nodes[id0].vizinhosID.append(id1)
+        nodes[id0].vizinhosID.sort()
+
+    # Se não é direcionado, adiciona também de id1 para id0
+    if not grafo_direcionado:
+        if id0 not in nodes[id1].vizinhosID:
+            nodes[id1].vizinhosID.append(id0)
+            nodes[id1].vizinhosID.sort()
+
+    tipo = "direcionada" if grafo_direcionado else "bidirecional"
+    print(f"Aresta {tipo} adicionada: {id0} -> {id1}")
 
 
 def clear():
@@ -35,8 +60,8 @@ def clear():
 
 def encontrar_componentes():
     """
-    Encontra todos os componentes conectados do grafo
-    Retorna uma lista de listas, onde cada lista interna contém os IDs dos nós de um componente
+    Para grafos direcionados: encontra componentes fracamente conectados
+    Para grafos não-direcionados: encontra componentes conectados
     """
     visitados = set()
     componentes = []
@@ -45,7 +70,6 @@ def encontrar_componentes():
         if node_id not in visitados:
             # Novo componente encontrado
             componente = []
-            # DFS para encontrar todos os nós deste componente
             stack = [node_id]
 
             while stack:
@@ -53,8 +77,22 @@ def encontrar_componentes():
                 if atual not in visitados:
                     visitados.add(atual)
                     componente.append(atual)
-                    # Adiciona todos os vizinhos não visitados
-                    for vizinho in nodes[atual].vizinhosID:
+
+                    # Para grafos direcionados, considera conexões em ambas as direções
+                    # para encontrar componentes fracamente conectados
+                    vizinhos_a_visitar = set()
+
+                    # Adiciona vizinhos diretos (saída)
+                    vizinhos_a_visitar.update(nodes[atual].vizinhosID)
+
+                    # Se é direcionado, também considera arestas de entrada
+                    if grafo_direcionado:
+                        for outro_id, outro_node in nodes.items():
+                            if atual in outro_node.vizinhosID:
+                                vizinhos_a_visitar.add(outro_id)
+
+                    # Adiciona vizinhos não visitados à pilha
+                    for vizinho in vizinhos_a_visitar:
                         if vizinho not in visitados:
                             stack.append(vizinho)
 
@@ -66,7 +104,7 @@ def encontrar_componentes():
 def BFS_componente(node_inicial):
     """
     Executa BFS em um componente específico, começando do node_inicial
-    Retorna dicionário com as distâncias
+    Para grafos direcionados, só segue as arestas na direção correta
     """
     info_componente = {}
     visitados = set()
@@ -80,7 +118,7 @@ def BFS_componente(node_inicial):
         atual = fila.pop(0)
         distancia_atual = info_componente[atual]
 
-        # Visita todos os vizinhos
+        # Visita apenas os vizinhos diretos (seguindo a direção das arestas)
         for vizinho in nodes[atual].vizinhosID:
             if vizinho not in visitados:
                 visitados.add(vizinho)
@@ -93,38 +131,48 @@ def BFS_componente(node_inicial):
 
 def BFS():
     """
-    Executa BFS em todos os componentes do grafo
-    Cada componente terá suas próprias distâncias começando do 0
+    Executa BFS respeitando a direção das arestas se for grafo direcionado
     """
     if not nodes:
         print("Nenhum nó encontrado")
         return {}
 
     info_total = {}
-    componentes = encontrar_componentes()
 
-    print(f"Encontrados {len(componentes)} componente(s)")
+    if grafo_direcionado:
+        # Para grafos direcionados, executa BFS de cada nó separadamente
+        visitados_global = set()
 
-    for i, componente in enumerate(componentes):
-        print(f"\nProcessando componente {i + 1}: {componente}")
+        for node_id in sorted(nodes.keys()):
+            if node_id not in visitados_global:
+                print(f"\nExecutando BFS direcionado a partir do nó {node_id}")
+                info_componente = BFS_componente(node_id)
+                info_total.update(info_componente)
+                visitados_global.update(info_componente.keys())
 
-        # Escolhe o primeiro nó do componente como inicial
-        # Você pode modificar isso para escolher o nó com menor ID ou outro critério
-        node_inicial = min(componente)  # Usa o nó com menor ID
+        # Para nós não alcançáveis por nenhum BFS, adiciona com valor 0
+        for node_id in nodes.keys():
+            if node_id not in info_total:
+                info_total[node_id] = 0
+                print(f"Nó {node_id} é isolado")
+    else:
+        # Para grafos não-direcionados, usa o método original
+        componentes = encontrar_componentes()
+        print(f"Encontrados {len(componentes)} componente(s)")
 
-        # Executa BFS neste componente
-        info_componente = BFS_componente(node_inicial)
+        for i, componente in enumerate(componentes):
+            print(f"\nProcessando componente {i + 1}: {componente}")
+            node_inicial = min(componente)
+            info_componente = BFS_componente(node_inicial)
+            info_total.update(info_componente)
 
-        # Adiciona as informações ao resultado total
-        info_total.update(info_componente)
-
-    print("BFS completo para todos os componentes")
+    print("BFS completo")
     return info_total
 
 
 def DFS():
     """
-    Executa DFS em todos os componentes do grafo
+    Executa DFS respeitando a direção das arestas se for grafo direcionado
     """
     if not nodes:
         print("Nenhum nó encontrado")
@@ -135,19 +183,24 @@ def DFS():
     info = {}
     visitados = set()
 
-    componentes = encontrar_componentes()
-    print(f"Encontrados {len(componentes)} componente(s) para DFS")
+    if grafo_direcionado:
+        # Para grafos direcionados, executa DFS de cada nó não visitado
+        for node_id in sorted(nodes.keys()):
+            if node_id not in visitados:
+                print(f"\nExecutando DFS direcionado a partir do nó {node_id}")
+                DFS_recusivo(node_id)
+    else:
+        # Para grafos não-direcionados, usa componentes
+        componentes = encontrar_componentes()
+        print(f"Encontrados {len(componentes)} componente(s) para DFS")
 
-    for i, componente in enumerate(componentes):
-        print(f"\nProcessando componente DFS {i + 1}: {componente}")
+        for i, componente in enumerate(componentes):
+            print(f"\nProcessando componente DFS {i + 1}: {componente}")
+            node_inicial = min(componente)
+            if node_inicial not in visitados:
+                DFS_recusivo(node_inicial)
 
-        # Escolhe o primeiro nó do componente como inicial
-        node_inicial = min(componente)
-
-        if node_inicial not in visitados:
-            DFS_recusivo(node_inicial)
-
-    print("DFS completo para todos os componentes")
+    print("DFS completo")
     return info
 
 
@@ -163,8 +216,11 @@ def DFS_recusivo(id):
         count += 1
         print("Node " + str(id) + " visitada")
         visitados.add(id)
+
+        # Visita apenas os vizinhos diretos (respeitando direção)
         for vID in nodes[id].vizinhosID:
             DFS_recusivo(vID)
+
         postvisit = count
         count += 1
         info[id] = (previsit, postvisit)
